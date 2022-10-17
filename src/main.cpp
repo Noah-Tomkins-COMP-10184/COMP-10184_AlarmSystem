@@ -4,21 +4,113 @@
  */
 
 #include <Arduino.h>
+#include <Bounce2.h>
+
+#define PIR     D5
+#define BUTTON  D6
+#define LED		LED_BUILTIN
+
+enum SecurityState {
+	ARMED, ENTRY, DISARMED, ALARM
+};
+
+SecurityState state = ARMED;
+bool motion = false;
+
+unsigned long timeEntered;
+unsigned long timeSinceLastBlink;
+
+unsigned long phaseTime = 10000; // 10 seconds
+unsigned int blinksPerSecond = 4; // Blinks Per Second
+unsigned int blinkPause = (1000 / blinksPerSecond) / 2;
+bool ledState = false;
+
+Bounce bounce = Bounce();
+
+/*** HELPER METHODS ***/
+String stateToString(SecurityState securityState) {
+	switch (securityState) {
+		case ARMED:
+			return "Armed";
+		case ENTRY:
+			return "Entry";
+		case DISARMED:
+			return "Disarmed";
+		case ALARM:
+			return "Alarm";
+		default:
+			return "Unknown";
+	}
+}
+
+bool buttonPressed() {
+	return bounce.changed() && bounce.read() == HIGH;
+}
+
+/*** Alarm Modes ***/
+void changeState(SecurityState newState) {
+	Serial.println("Security State changed from " + stateToString(state) + " to " + stateToString(newState));
+	state = newState;
+}
+
+void armed() {
+	if (motion) {
+		changeState(ENTRY);
+		timeEntered = millis();
+		timeSinceLastBlink = millis();
+	}	
+}
+
+void entry() {
+	if (millis() - timeEntered < phaseTime) {
+
+		if (millis() - timeSinceLastBlink >= blinkPause) {
+			ledState = !ledState;
+			timeSinceLastBlink = millis();
+		}
+
+		if (buttonPressed()) {
+			changeState(DISARMED);
+			ledState = false;
+		}
+	} else {
+		changeState(ALARM);
+	}	
+}
+
+void disarmed() {
+	ledState = false;
+
+	if (buttonPressed()) {
+		changeState(ARMED);
+	}
+}
+
+void alarm() {
+	ledState = true;
+}
+
+/*** MAIN PROGRAM EXECUTION ***/
 
 void setup() {
-  Serial.begin(115200);
+	Serial.begin(115200);
+	Serial.println("\n\nNoah");
 
-  Serial.println("\n\nHello, World!");
+	pinMode(LED, OUTPUT);
+	pinMode(PIR, INPUT);
 
-  Serial.println("\n\nNoah Tomkins (000790079)");
-  
-  Serial.println("\nESP8266 Chip ID: " + String(ESP.getChipId()));
-  Serial.println("Flash Chip ID: " + String(ESP.getFlashChipId()));
-
-  Serial.println("\n");
+	bounce.attach(BUTTON, INPUT_PULLUP);
+	bounce.interval(5);
 }
 
 void loop() {
-  Serial.println(String(millis()) + " ms");
-  delay(2000);
+	bounce.update();
+	motion = digitalRead(PIR);
+
+	if (state == ARMED) armed();
+	else if (state == ENTRY) entry();
+	else if (state == DISARMED) disarmed();
+	else if (state == ALARM) alarm();
+
+	digitalWrite(LED, !ledState);
 }
