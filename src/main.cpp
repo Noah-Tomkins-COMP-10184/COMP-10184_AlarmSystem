@@ -94,7 +94,9 @@ void alarm() {
 
 void setup() {
 	Serial.begin(115200);
-	Serial.println("\n\nNoah");
+	Serial.println("\n\nCOMP-10184 - Alarm System");
+    Serial.println("Name: Noah Tomkins");
+    Serial.println("Student ID: 000790079");
 
 	pinMode(LED, OUTPUT);
 	pinMode(PIR, INPUT);
